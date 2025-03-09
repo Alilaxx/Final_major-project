@@ -1,26 +1,36 @@
 from flask import Flask, request, render_template
 import pandas as pd
 import joblib
+import os
 
-# Load the trained model and scaler
-model = joblib.load('safety_model.pkl')
-scaler = joblib.load('scaler.pkl')
+# Check if required files exist
+model_path = "safety_model.pkl"
+scaler_path = "scaler.pkl"
+data_path = "processed_data.csv"
 
-# Load processed dataset to get locality data
-final_df = pd.read_csv('processed_data.csv')
+if not os.path.exists(model_path) or not os.path.exists(scaler_path) or not os.path.exists(data_path):
+    raise FileNotFoundError("One or more required files (model, scaler, dataset) are missing!")
+
+# Load model, scaler, and dataset
+model = joblib.load(model_path)
+scaler = joblib.load(scaler_path)
+final_df = pd.read_csv(data_path)
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Function to predict safety of a locality
 def predict_locality_safety(locality_name):
-    if locality_name not in final_df['Locality'].values:
+    locality_name = locality_name.strip().lower()  # Normalize input
+
+    # Find matching locality (case-insensitive)
+    matching_locality = final_df[final_df["Locality"].str.lower() == locality_name]
+
+    if matching_locality.empty:
         return "Locality not found ❌"
 
-    # Extract features for the given locality
-    locality_data = final_df[final_df['Locality'] == locality_name].drop(columns=['Locality', 'Safety_Label'])
-
-    # Scale the input features
+    # Extract features and scale
+    locality_data = matching_locality.drop(columns=["Locality", "Safety_Label"])
     locality_data_scaled = scaler.transform(locality_data)
 
     # Predict safety
@@ -38,4 +48,4 @@ def index():
 
 # Run the app
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)  # Required for Render
